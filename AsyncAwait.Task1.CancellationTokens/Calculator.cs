@@ -13,7 +13,10 @@ internal static class Calculator
         {
             // i + 1 is to allow 2147483647 (Max(Int32)) 
             sum = sum + (i + 1);
+
             Thread.Sleep(10);
+
+            token.ThrowIfCancellationRequested();
         }
 
         return sum;
