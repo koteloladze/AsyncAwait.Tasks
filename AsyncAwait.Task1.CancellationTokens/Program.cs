@@ -8,6 +8,8 @@
 */
 
 using System;
+using System.Threading.Tasks;
+using System.Threading;
 
 namespace AsyncAwait.Task1.CancellationTokens;
 
@@ -46,16 +48,48 @@ internal class Program
         Console.ReadLine();
     }
 
-    private static void CalculateSum(int n)
+    private static async void CalculateSum(int n)
     {
-        // todo: make calculation asynchronous
-        var sum = Calculator.Calculate(n);
-        Console.WriteLine($"Sum for {n} = {sum}.");
-        Console.WriteLine();
-        Console.WriteLine("Enter N: ");
-        // todo: add code to process cancellation and uncomment this line    
-        // Console.WriteLine($"Sum for {n} cancelled...");
+        var cts = new CancellationTokenSource();
+        var token = cts.Token;
+
+        var calculateTask = Task.Run(() => Calculator.Calculate(n, token), token);
+
+        var calculateTaskCancelContinuation = calculateTask.ContinueWith((t) =>
+        {
+            Console.WriteLine($"Sum for {n} cancelled...");
+        }, TaskContinuationOptions.OnlyOnCanceled);
+
+        var calculateTaskSuccessContinuation = calculateTask.ContinueWith((t) =>
+        {
+            Console.WriteLine($"Sum for {n} = {t.Result}.");
+        }, TaskContinuationOptions.OnlyOnRanToCompletion);
 
         Console.WriteLine($"The task for {n} started... Enter N to cancel the request:");
+
+        while (!calculateTask.IsCompleted)
+        {
+            Console.WriteLine("Enter N: ");
+
+            var input = Console.ReadLine();
+
+            if (int.TryParse(input, out var inputInteger))
+            {
+                if (!calculateTask.IsCompleted)
+                {
+                    cts.Cancel();
+                }
+
+                CalculateSum(inputInteger);
+
+                break;
+            }
+            else
+            {
+                Console.WriteLine($"Invalid integer: '{input}'. Please try again.");
+            }
+        }
+
+        await Task.WhenAny(calculateTaskCancelContinuation, calculateTaskSuccessContinuation);
     }
 }
